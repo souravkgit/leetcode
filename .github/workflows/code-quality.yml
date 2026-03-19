@@ -1,0 +1,221 @@
+name: Code Quality & Formatting
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'Solutions/**'
+  workflow_dispatch:
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  auto-format-python:
+    runs-on: ubuntu-latest
+    name: Format Python Code
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install formatting tools
+        run: |
+          pip install black isort
+
+      - name: Format Python files with black and isort
+        run: |
+          python_files=$(find Solutions -name 'solution.py' -type f)
+          
+          if [ -z "$python_files" ]; then
+            echo "ℹ️  No Python files to format"
+            exit 0
+          fi
+          
+          echo "Formatting Python files with black..."
+          black $python_files --line-length=100
+          
+          echo "Formatting imports with isort..."
+          isort $python_files --profile=black
+          
+          echo "✅ Python formatting complete"
+
+      - name: Commit formatting changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "style: auto-format Python code with black and isort"
+          commit_user_name: "GitHub Actions"
+          commit_user_email: "actions@github.com"
+          file_pattern: "Solutions/**/*.py"
+
+  check-complexity:
+    runs-on: ubuntu-latest
+    name: Check Code Complexity
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install complexity checker
+        run: |
+          pip install radon
+
+      - name: Check Python code complexity
+        run: |
+          echo "Analyzing code complexity..."
+          python_files=$(find Solutions -name 'solution.py' -type f)
+          
+          if [ -z "$python_files" ]; then
+            echo "ℹ️  No Python files to analyze"
+            exit 0
+          fi
+          
+          echo "Cyclomatic Complexity Analysis:"
+          radon cc $python_files --average -s || true
+          
+          echo -e "\nMaintainability Index:"
+          radon mi $python_files -s || true
+          
+          echo "✅ Complexity analysis complete"
+
+  spell-check:
+    runs-on: ubuntu-latest
+    name: Spell Check
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install spell checker
+        run: |
+          apt-get update -qq
+          apt-get install -y aspell aspell-en
+
+      - name: Spell check comments and docstrings
+        run: |
+          echo "Running spell check on code files..."
+          
+          found_errors=0
+          for file in $(find Solutions -type f \( -name "*.py" -o -name "*.java" -o -name "*.cpp" -o -name "*.js" \)); do
+            # Extract comments and strings for spell checking
+            grep -oE '(#|//|/\*|\*/).*' "$file" | aspell -l en list | sort -u | while read word; do
+              echo "⚠️  Possible misspelling in $file: $word"
+              found_errors=$((found_errors + 1))
+            done
+          done
+          
+          if [ $found_errors -eq 0 ]; then
+            echo "✅ No spelling errors detected in comments"
+          fi
+
+  file-size-check:
+    runs-on: ubuntu-latest
+    name: Check File Sizes
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify file sizes
+        run: |
+          echo "Checking solution file sizes..."
+          
+          max_size=$((500 * 1024))  # 500 KB in bytes
+          
+          while IFS= read -r file; do
+            size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null)
+            filename=$(basename "$file")
+            
+            if [ $size -gt $max_size ]; then
+              echo "❌ File exceeds maximum size: $filename ($((size / 1024)) KB)"
+              exit 1
+            else
+              echo "✅ $filename is acceptable size ($((size / 1024)) KB)"
+            fi
+          done < <(find Solutions -name 'solution.*' -type f)
+
+  test-coverage-reminder:
+    runs-on: ubuntu-latest
+    name: Test Coverage Reminder
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for test cases
+        run: |
+          echo "Checking for test cases in solutions..."
+          
+          python_files=$(find Solutions -name 'solution.py' -type f)
+          missing_tests=0
+          
+          while IFS= read -r file; do
+            # Check if file contains test cases (if __name__ == "__main__" or test function)
+            if ! grep -q "if __name__.*==.*['\"]__main__['\"]" "$file" && \
+               ! grep -q "def test_" "$file"; then
+              echo "⚠️  No test cases found in: $file"
+              echo "   Consider adding test cases to verify your solution"
+              missing_tests=$((missing_tests + 1))
+            fi
+          done <<< "$python_files"
+          
+          if [ $missing_tests -eq 0 ]; then
+            echo "✅ All Python files contain test cases"
+          else
+            echo "⚠️  $missing_tests file(s) are missing test cases"
+          fi
+
+  documentation-check:
+    runs-on: ubuntu-latest
+    name: Documentation Check
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate documentation completeness
+        run: |
+          echo "Checking documentation in solution files..."
+          
+          changed_files=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...HEAD | grep '^Solutions/' | grep 'solution\.')
+          
+          if [ -z "$changed_files" ]; then
+            echo "ℹ️  No solution files changed"
+            exit 0
+          fi
+          
+          required_sections=("Author" "Problem" "Approach" "Time Complexity" "Space Complexity")
+          
+          while IFS= read -r file; do
+            echo "Checking: $file"
+            missing=0
+            
+            for section in "${required_sections[@]}"; do
+              if ! grep -iq "$section" "$file"; then
+                echo "  ❌ Missing: $section"
+                missing=$((missing + 1))
+              fi
+            done
+            
+            if [ $missing -eq 0 ]; then
+              echo "  ✅ All required sections present"
+            else
+              exit 1
+            fi
+          done <<< "$changed_files"
