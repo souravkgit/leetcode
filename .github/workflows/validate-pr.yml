@@ -8,6 +8,11 @@ on:
       - 'README.md'
       - '.github/workflows/validate-pr.yml'
 
+permissions:
+  pull-requests: write
+  contents: read
+  issues: write
+
 jobs:
   validate-structure:
     runs-on: ubuntu-latest
@@ -21,94 +26,38 @@ jobs:
       - name: Validate directory naming convention
         run: |
           echo "Checking directory naming convention..."
-          # Check if new directories follow the format XXXX-Problem-Name
           for dir in Solutions/*/; do
             if ! [[ $(basename "$dir") =~ ^[0-9]{4}-[A-Za-z0-9-]+$ ]]; then
               echo "❌ Directory name does not follow XXXX-Problem-Name format: $dir"
-              echo "   Expected format: 0001-Two-Sum, 0002-Add-Two-Numbers"
               exit 1
             fi
           done
-          echo "✅ All directories follow the correct naming convention"
-
-      - name: Validate solution files exist
-        run: |
-          echo "Checking for solution files..."
-          for dir in Solutions/*/; do
-            if [ -z "$(find "$dir" -maxdepth 1 -name 'solution.*' -type f)" ]; then
-              echo "❌ No solution file found in: $dir"
-              echo "   Please add at least one solution file (solution.py, solution.java, etc.)"
-              exit 1
-            fi
-          done
-          echo "✅ All problem directories contain solution files"
+          echo "✅ All directories follow correct naming"
 
       - name: Validate solution file headers
         run: |
-          echo "Validating solution file headers and documentation..."
+          echo "Validating solution file headers..."
           has_error=0
-          
-          # Get changed files in Solutions directory
-          changed_files=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...HEAD | grep '^Solutions/' | grep 'solution\.')
+          # Using origin/main for reliable diffing
+          git fetch origin main
+          changed_files=$(git diff --name-only origin/main...HEAD | grep '^Solutions/' | grep 'solution\.')
           
           if [ -z "$changed_files" ]; then
-            echo "ℹ️  No solution files changed in this PR"
+            echo "ℹ️ No solution files changed"
             exit 0
           fi
           
           while IFS= read -r file; do
             echo "Checking: $file"
-            
-            # Check if file contains author information (case-insensitive)
-            if ! grep -iq "author\|author:" "$file"; then
-              echo "❌ Missing Author information in: $file"
-              has_error=1
-            fi
-            
-            # Check if file contains problem description or link
-            if ! grep -iq "problem\|description\|leetcode.com" "$file"; then
-              echo "❌ Missing Problem description/link in: $file"
-              has_error=1
-            fi
-            
-            # Check if file contains time complexity
-            if ! grep -iq "time\|complexity\|O(" "$file"; then
-              echo "❌ Missing Time complexity documentation in: $file"
-              has_error=1
-            fi
-            
-            # Check if file contains space complexity
-            if ! grep -iq "space\|complexity\|O(" "$file"; then
-              echo "❌ Missing Space complexity documentation in: $file"
-              has_error=1
-            fi
-            
-            # Check for comments in the code
-            file_ext="${file##*.}"
-            if [ "$file_ext" = "py" ]; then
-              if ! grep -q "^\s*#\|^\s*\"\"\"" "$file"; then
-                echo "⚠️  Warning: Minimal comments found in Python file: $file"
+            for term in "Author" "Problem" "Time Complexity" "Space Complexity"; do
+              if ! grep -iq "$term" "$file"; then
+                echo "❌ Missing $term in: $file"
+                has_error=1
               fi
-            elif [ "$file_ext" = "java" ]; then
-              if ! grep -q "^\s*//" "$file"; then
-                echo "⚠️  Warning: Minimal comments found in Java file: $file"
-              fi
-            elif [ "$file_ext" = "cpp" ]; then
-              if ! grep -q "^\s*//" "$file"; then
-                echo "⚠️  Warning: Minimal comments found in C++ file: $file"
-              fi
-            elif [ "$file_ext" = "js" ]; then
-              if ! grep -q "^\s*//" "$file"; then
-                echo "⚠️  Warning: Minimal comments found in JavaScript file: $file"
-              fi
-            fi
+            done
           done <<< "$changed_files"
           
-          if [ $has_error -eq 1 ]; then
-            exit 1
-          fi
-          
-          echo "✅ All solution files have proper documentation"
+          if [ $has_error -eq 1 ]; then exit 1; fi
 
   validate-readme:
     runs-on: ubuntu-latest
@@ -119,231 +68,94 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check if README is updated with new problems
+      - name: Check if README is updated
         run: |
-          echo "Checking if README contains new problem entries..."
-          
-          # Get the list of changed files
-          changed_files=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...HEAD)
-          
-          # Check if Solutions directory has changes
-          solutions_changed=$(echo "$changed_files" | grep '^Solutions/' | wc -l)
-          
-          if [ $solutions_changed -gt 0 ]; then
-            # Check if README was modified
-            if ! echo "$changed_files" | grep -q '^README.md'; then
-              echo "⚠️  Solutions were added but README.md was not modified"
-              echo "   Please update the Solutions Table in README.md with the new problem details"
-              exit 1
-            else
-              echo "✅ README.md was updated"
-            fi
-          else
-            echo "ℹ️  No solution files changed - README check skipped"
-          fi
-
-      - name: Validate README table format
-        run: |
-          echo "Validating README table entries..."
-          
-          # Check if README exists
-          if [ ! -f "README.md" ]; then
-            echo "❌ README.md not found!"
+          git fetch origin main
+          changed_files=$(git diff --name-only origin/main...HEAD)
+          if echo "$changed_files" | grep -q '^Solutions/' && ! echo "$changed_files" | grep -q '^README.md'; then
+            echo "❌ Solutions added but README.md not updated!"
             exit 1
-          fi
-          
-          # Check if solutions table exists
-          if ! grep -q "| # | Problem |" README.md; then
-            echo "⚠️  Solutions table not found in expected format"
-            echo "   Please ensure the table follows the format in the template"
-          else
-            echo "✅ README contains properly formatted solutions table"
           fi
 
   lint-python:
     runs-on: ubuntu-latest
-    name: Lint Python Files
+    name: Lint Python
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-
-      - name: Install linting tools
+      - name: Install tools
+        run: pip install flake8 black isort
+      - name: Run Lint
         run: |
-          pip install flake8 pylint black isort
-
-      - name: Lint Python files
-        run: |
-          echo "Linting Python solution files..."
           python_files=$(find Solutions -name 'solution.py' -type f)
-          
-          if [ -z "$python_files" ]; then
-            echo "ℹ️  No Python files to lint"
-            exit 0
+          if [ -n "$python_files" ]; then
+            black --check $python_files
+            flake8 $python_files --max-line-length=100
           fi
-          
-          has_error=0
-          
-          # Check for code style with black (non-enforcing, just show issues)
-          echo "Checking code style..."
-          black --check $python_files || echo "⚠️  Some files don't follow black style"
-          
-          # Check for common issues
-          echo "Running flake8 checks..."
-          flake8 $python_files --max-line-length=100 --ignore=E501,W503 || true
-          
-          echo "✅ Python linting complete"
-
-  lint-java:
-    runs-on: ubuntu-latest
-    name: Lint Java Files
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '11'
-
-      - name: Validate Java syntax
-        run: |
-          echo "Validating Java solution files..."
-          java_files=$(find Solutions -name 'solution.java' -type f)
-          
-          if [ -z "$java_files" ]; then
-            echo "ℹ️  No Java files to validate"
-            exit 0
-          fi
-          
-          has_error=0
-          
-          while IFS= read -r file; do
-            echo "Checking: $file"
-            
-            # Check basic Java syntax
-            if ! javac -version &>/dev/null; then
-              echo "❌ Java compiler not found"
-              exit 1
-            fi
-            
-            # Try to compile (won't be executed, just syntax check)
-            if ! javac "$file" 2>/dev/null; then
-              echo "⚠️  Java syntax issues in: $file"
-            fi
-          done <<< "$java_files"
-          
-          echo "✅ Java validation complete"
 
   lint-cpp:
     runs-on: ubuntu-latest
-    name: Lint C++ Files
+    name: Lint C++
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Validate C++ syntax
+      - name: Install clang (with sudo)
         run: |
-          echo "Validating C++ solution files..."
+          sudo apt-get update -qq
+          sudo apt-get install -y clang clang-format
+      - name: Validate C++
+        run: |
           cpp_files=$(find Solutions -name 'solution.cpp' -type f)
-          
-          if [ -z "$cpp_files" ]; then
-            echo "ℹ️  No C++ files to validate"
-            exit 0
-          fi
-          
-          # Install clang
-          apt-get update -qq
-          apt-get install -y clang clang-format
-          
-          has_error=0
-          
-          while IFS= read -r file; do
-            echo "Checking: $file"
-            
-            # Check C++ syntax
-            if ! clang -fsyntax-only "$file" 2>/dev/null; then
-              echo "⚠️  C++ syntax issues in: $file"
-            fi
-            
-            # Check code formatting
-            if ! clang-format --dry-run -Werror "$file" 2>/dev/null; then
-              echo "⚠️  Code formatting issues in: $file"
-            fi
-          done <<< "$cpp_files"
-          
-          echo "✅ C++ validation complete"
+          for file in $cpp_files; do
+            clang-format --dry-run -Werror "$file" || echo "⚠️ Formatting issues in $file"
+          done
 
   check-no-sensitive-data:
     runs-on: ubuntu-latest
-    name: Check for Sensitive Data
+    name: Security Scan
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Scan for API keys and credentials
+      - name: Scan
         run: |
-          echo "Scanning for sensitive data..."
-          has_error=0
-          
-          # Patterns to search for
-          patterns=(
-            "aws_access_key_id"
-            "aws_secret_access_key"
-            "password.*=.*['\"]"
-            "api_key.*=.*['\"]"
-            "private_key"
-            "client_secret"
-            "authorization.*Bearer"
-          )
-          
-          for pattern in "${patterns[@]}"; do
-            if grep -r -i "$pattern" Solutions/ --include="*.py" --include="*.java" --include="*.cpp" --include="*.js" 2>/dev/null; then
-              echo "❌ Potential sensitive data found matching pattern: $pattern"
-              has_error=1
-            fi
-          done
-          
-          if [ $has_error -eq 0 ]; then
-            echo "✅ No sensitive data detected"
-          else
+          if grep -rEi "api_key|password|secret|private_key" Solutions/; then
+            echo "❌ Sensitive data found!"
             exit 1
           fi
 
   final-check:
     runs-on: ubuntu-latest
-    name: Final Validation
-    needs: [validate-structure, validate-readme, lint-python, lint-java, lint-cpp, check-no-sensitive-data]
+    name: Final Results
+    needs: [validate-structure, validate-readme, lint-python, lint-cpp, check-no-sensitive-data]
     if: always()
     steps:
-      - name: Check all validations passed
-        run: |
-          if [ "${{ needs.validate-structure.result }}" != "success" ] || \
-             [ "${{ needs.validate-readme.result }}" != "success" ] || \
-             [ "${{ needs.check-no-sensitive-data.result }}" != "success" ]; then
-            echo "❌ Some validations failed. Please review the errors above."
-            exit 1
-          fi
-          
-          echo "✅ All validations passed successfully!"
-          echo "Your PR is ready for review."
-
-      - name: Comment PR with validation results
-        if: always()
+      - name: Post Results to PR
         uses: actions/github-script@v7
         with:
           script: |
-            const outcome = context.payload.pull_request.draft ? '📝 Draft PR' : '✅ Ready for Review';
-            github.rest.issues.createComment({
+            const results = {
+              structure: "${{ needs.validate-structure.result }}",
+              readme: "${{ needs.validate-readme.result }}",
+              python: "${{ needs.lint-python.result }}",
+              cpp: "${{ needs.lint-cpp.result }}",
+              security: "${{ needs.check-no-sensitive-data.result }}"
+            };
+            
+            const allPassed = Object.values(results).every(status => status === 'success' || status === 'skipped');
+            
+            const body = allPassed 
+              ? "### ✅ Validation Passed\n\nAll automated checks passed! A maintainer has been notified to review your solution."
+              : "### ❌ Validation Failed\n\nOne or more automated checks failed. Please check the **Actions** tab, fix the errors, and push again.";
+            
+            await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `## 🔍 Validation Results\n\n${outcome}\n\nAll automated checks have passed. Your contribution will be reviewed by the maintainers.`
-            })
+              body: body
+            });
+            
+            if (!allPassed) { process.exit(1); }

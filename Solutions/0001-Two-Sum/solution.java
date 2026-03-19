@@ -1,5 +1,5 @@
 /*
- * Author: GitHub User
+ * Author: Sourav Goyal
  * Date: 2026-03-19
  * Problem: Two Sum (https://leetcode.com/problems/two-sum/)
  * Difficulty: Easy
