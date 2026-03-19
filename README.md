@@ -47,7 +47,7 @@ This repository contains well-organized, documented solutions to LeetCode proble
 
 | # | Problem | Difficulty | Tags | Python | Java | C++ | JavaScript | Time | Space |
 |---|---------|-----------|------|--------|------|-----|------------|------|-------|
-| 1 | [Two Sum](https://leetcode.com/problems/two-sum/) | Easy | Array, Hash Table | [Python](./Solutions/0001-Two-Sum/solution.py) | [Java](./Solutions/0001-Two-Sum/solution.java) | [C++](./Solutions/0001-Two-Sum/solution.cpp) | -  | O(n) | O(n) |
+| 1 | [Two Sum](https://leetcode.com/problems/two-sum/) | Easy | Array, Hash Table | [Python](./Solutions/0001-Two-Sum/solution.py) | [Java](./Solutions/0001-Two-Sum/solution.java) | - | - | O(n) | O(n) |
 
 ## 🚀 How to Contribute
 
