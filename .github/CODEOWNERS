@@ -1,0 +1,15 @@
+* @souravkgit
+
+Solutions/ @souravkgit @Emrys73
+
+.github/workflows/ @souravkgit @Emrys73
+
+# Documentation files
+*.md @souravkgit @Emrys73
+CONTRIBUTING.md @souravkgit @Emrys73
+DEVELOPER_GUIDE.md @souravkgit @Emrys73
+
+# Configuration files
+.gitignore @souravkgit @Emrys73
+LICENSE @souravkgit @Emrys73
+.github/pull_request_template.md @souravkgit @Emrys73
