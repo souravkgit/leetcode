@@ -47,9 +47,7 @@ This repository contains well-organized, documented solutions to LeetCode proble
 
 | # | Problem | Difficulty | Tags | Python | Java | C++ | JavaScript | Time | Space |
 |---|---------|-----------|------|--------|------|-----|------------|------|-------|
-| 1 | [Two Sum](https://leetcode.com/problems/two-sum/) | Easy | Array, Hash Table | [Python](./Solutions/0001-Two-Sum/solution.py) | [Java](./Solutions/0001-Two-Sum/solution.java) | [C++](./Solutions/0001-Two-Sum/solution.cpp) | [JS](./Solutions/0001-Two-Sum/solution.js) | O(n) | O(n) |
-| 2 | [Add Two Numbers](https://leetcode.com/problems/add-two-numbers/) | Medium | Linked List, Math | [Python](./Solutions/0002-Add-Two-Numbers/solution.py) | [Java](./Solutions/0002-Add-Two-Numbers/solution.java) | [C++](./Solutions/0002-Add-Two-Numbers/solution.cpp) | - | O(max(m,n)) | O(max(m,n)) |
-| 3 | [Longest Substring Without Repeating Characters](https://leetcode.com/problems/longest-substring-without-repeating-characters/) | Medium | Hash Table, String, Sliding Window | [Python](./Solutions/0003-Longest-Substring/solution.py) | - | - | - | O(n) | O(min(m,n)) |
+| 1 | [Two Sum](https://leetcode.com/problems/two-sum/) | Easy | Array, Hash Table | [Python](./Solutions/0001-Two-Sum/solution.py) | [Java](./Solutions/0001-Two-Sum/solution.java) | [C++](./Solutions/0001-Two-Sum/solution.cpp) | -  | O(n) | O(n) |
 
 ## 🚀 How to Contribute
 
@@ -206,7 +204,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 👥 Contributors
 
-- [Your Name](https://github.com/yourusername)
+- [Sourav Goyal](https://github.com/souravkgit)
 
 ## 🤝 Community Guidelines
 
@@ -223,4 +221,4 @@ For questions or suggestions, please open an issue or contact the maintainers.
 
 **Happy Coding! 🎉**
 
-*Last Updated: March 19, 2026*
+*Last Updated: March 20, 2026*
