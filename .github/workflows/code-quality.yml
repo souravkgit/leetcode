@@ -101,8 +101,8 @@ jobs:
 
       - name: Install spell checker
         run: |
-          apt-get update -qq
-          apt-get install -y aspell aspell-en
+          sudo apt-get update -qq
+          sudo apt-get install -y aspell aspell-en
 
       - name: Spell check comments and docstrings
         run: |
@@ -137,7 +137,8 @@ jobs:
           max_size=$((500 * 1024))  # 500 KB in bytes
           
           while IFS= read -r file; do
-            size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null)
+            # Compatibility fix for stat command on linux
+            size=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file" 2>/dev/null)
             filename=$(basename "$file")
             
             if [ $size -gt $max_size ]; then
@@ -165,11 +166,9 @@ jobs:
           missing_tests=0
           
           while IFS= read -r file; do
-            # Check if file contains test cases (if __name__ == "__main__" or test function)
             if ! grep -q "if __name__.*==.*['\"]__main__['\"]" "$file" && \
                ! grep -q "def test_" "$file"; then
               echo "⚠️  No test cases found in: $file"
-              echo "   Consider adding test cases to verify your solution"
               missing_tests=$((missing_tests + 1))
             fi
           done <<< "$python_files"
@@ -191,9 +190,9 @@ jobs:
 
       - name: Validate documentation completeness
         run: |
-          echo "Checking documentation in solution files..."
-          
-          changed_files=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...HEAD | grep '^Solutions/' | grep 'solution\.')
+          # FIX: Reliable diffing
+          git fetch origin main
+          changed_files=$(git diff --name-only origin/main...HEAD | grep '^Solutions/' | grep 'solution\.')
           
           if [ -z "$changed_files" ]; then
             echo "ℹ️  No solution files changed"
@@ -213,9 +212,6 @@ jobs:
               fi
             done
             
-            if [ $missing -eq 0 ]; then
-              echo "  ✅ All required sections present"
-            else
-              exit 1
-            fi
+            if [ $missing -gt 0 ]; then exit 1; fi
           done <<< "$changed_files"
+          echo "✅ All documentation checks passed"
