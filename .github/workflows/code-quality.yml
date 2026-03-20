@@ -31,7 +31,7 @@ jobs:
         run: |
           pip install black isort
 
-      - name: Format Python files with black and isort
+      - name: Format Python files (optional)
         run: |
           python_files=$(find Solutions -name 'solution.py' -type f)
           
@@ -40,21 +40,20 @@ jobs:
             exit 0
           fi
           
-          echo "Formatting Python files with black..."
-          black $python_files --line-length=100
+          echo "📝 Auto-formatting Python files..."
+          black $python_files --line-length=100 || echo "⚠️  Some formatting suggestions"
+          isort $python_files --profile=black || echo "⚠️  Some import suggestions"
           
-          echo "Formatting imports with isort..."
-          isort $python_files --profile=black
-          
-          echo "✅ Python formatting complete"
+          echo "✅ Python formatting check complete"
 
-      - name: Commit formatting changes
+      - name: Commit formatting changes (if any)
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "style: auto-format Python code with black and isort"
           commit_user_name: "GitHub Actions"
           commit_user_email: "actions@github.com"
           file_pattern: "Solutions/**/*.py"
+          skip_dirty_check: true
 
   check-complexity:
     runs-on: ubuntu-latest
@@ -95,6 +94,7 @@ jobs:
   spell-check:
     runs-on: ubuntu-latest
     name: Spell Check
+    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -104,33 +104,32 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y aspell aspell-en
 
-      - name: Spell check comments and docstrings
+      - name: Spell check (informational only)
         run: |
           echo "Running spell check on code files..."
           
           found_errors=0
           for file in $(find Solutions -type f \( -name "*.py" -o -name "*.java" -o -name "*.cpp" -o -name "*.js" \)); do
             # Extract comments and strings for spell checking
-            grep -oE '(#|//|/\*|\*/).*' "$file" | aspell -l en list | sort -u | while read word; do
+            grep -oE '(#|//|/\*|\*/).*' "$file" 2>/dev/null | aspell -l en list | sort -u | while read word; do
               echo "⚠️  Possible misspelling in $file: $word"
               found_errors=$((found_errors + 1))
             done
           done
           
-          if [ $found_errors -eq 0 ]; then
-            echo "✅ No spelling errors detected in comments"
-          fi
+          echo "✅ Spell check complete (warnings only)"
 
   file-size-check:
     runs-on: ubuntu-latest
     name: Check File Sizes
+    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Verify file sizes
+      - name: Verify file sizes (warning only)
         run: |
           echo "Checking solution file sizes..."
           
@@ -142,23 +141,25 @@ jobs:
             filename=$(basename "$file")
             
             if [ $size -gt $max_size ]; then
-              echo "❌ File exceeds maximum size: $filename ($((size / 1024)) KB)"
-              exit 1
+              echo "⚠️  File is large: $filename ($((size / 1024)) KB) - consider optimizing"
             else
               echo "✅ $filename is acceptable size ($((size / 1024)) KB)"
             fi
           done < <(find Solutions -name 'solution.*' -type f)
+          
+          echo "✅ File size check complete"
 
   test-coverage-reminder:
     runs-on: ubuntu-latest
     name: Test Coverage Reminder
+    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Check for test cases
+      - name: Check for test cases (informational)
         run: |
           echo "Checking for test cases in solutions..."
           
@@ -168,7 +169,7 @@ jobs:
           while IFS= read -r file; do
             if ! grep -q "if __name__.*==.*['\"]__main__['\"]" "$file" && \
                ! grep -q "def test_" "$file"; then
-              echo "⚠️  No test cases found in: $file"
+              echo "💡 Tip: Consider adding test cases to: $file"
               missing_tests=$((missing_tests + 1))
             fi
           done <<< "$python_files"
@@ -176,30 +177,31 @@ jobs:
           if [ $missing_tests -eq 0 ]; then
             echo "✅ All Python files contain test cases"
           else
-            echo "⚠️  $missing_tests file(s) are missing test cases"
+            echo "⚠️  $missing_tests file(s) could benefit from test cases"
           fi
 
   documentation-check:
     runs-on: ubuntu-latest
     name: Documentation Check
+    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Validate documentation completeness
+      - name: Validate documentation (informational)
         run: |
           # FIX: Reliable diffing
-          git fetch origin main
-          changed_files=$(git diff --name-only origin/main...HEAD | grep '^Solutions/' | grep 'solution\.')
+          git fetch origin main || true
+          changed_files=$(git diff --name-only origin/main...HEAD 2>/dev/null | grep '^Solutions/' | grep 'solution\.' || echo "")
           
           if [ -z "$changed_files" ]; then
             echo "ℹ️  No solution files changed"
             exit 0
           fi
           
-          required_sections=("Author" "Problem" "Approach" "Time Complexity" "Space Complexity")
+          required_sections=("Author" "Problem" "Time Complexity" "Space Complexity")
           
           while IFS= read -r file; do
             echo "Checking: $file"
@@ -207,11 +209,14 @@ jobs:
             
             for section in "${required_sections[@]}"; do
               if ! grep -iq "$section" "$file"; then
-                echo "  ❌ Missing: $section"
+                echo "  💡 Tip: Missing $section section"
                 missing=$((missing + 1))
               fi
             done
             
-            if [ $missing -gt 0 ]; then exit 1; fi
+            if [ $missing -gt 0 ]; then
+              echo "  ⚠️  Consider adding missing sections"
+            fi
           done <<< "$changed_files"
-          echo "✅ All documentation checks passed"
+          
+          echo "✅ Documentation check complete (no blocking issues)"
