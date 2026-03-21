@@ -134,6 +134,10 @@ jobs:
     name: Final Results
     needs: [validate-structure, validate-readme, lint-python, lint-cpp, check-no-sensitive-data]
     if: always()
+    permissions:
+      pull-requests: write
+      issues: write
+      contents: read
     steps:
       - name: Post Results to PR
         uses: actions/github-script@v7
@@ -147,17 +151,23 @@ jobs:
               security: "${{ needs.check-no-sensitive-data.result }}"
             };
             
+            // Check if every required job succeeded or was skipped
             const allPassed = Object.values(results).every(status => status === 'success' || status === 'skipped');
             
             const body = allPassed 
               ? "### ✅ Validation Passed\n\nAll automated checks passed! A maintainer has been notified to review your solution."
               : "### ❌ Validation Failed\n\nOne or more automated checks failed. Please check the **Actions** tab, fix the errors, and push again.";
             
+            // Use pull_request number specifically
+            const issueNumber = context.payload.pull_request ? context.payload.pull_request.number : context.issue.number;
+
             await github.rest.issues.createComment({
-              issue_number: context.issue.number,
+              issue_number: issueNumber,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: body
             });
             
-            if (!allPassed) { process.exit(1); }
+            if (!allPassed) { 
+              core.setFailed("Validation failed. Check the job results for details.");
+            }
