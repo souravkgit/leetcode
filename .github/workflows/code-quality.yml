@@ -19,6 +19,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.head_ref }}
           fetch-depth: 0
 
@@ -47,13 +48,18 @@ jobs:
           echo "✅ Python formatting check complete"
 
       - name: Commit formatting changes (if any)
+        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+        continue-on-error: true
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
+          repository: .
           commit_message: "style: auto-format Python code with black and isort"
           commit_user_name: "GitHub Actions"
           commit_user_email: "actions@github.com"
           file_pattern: "Solutions/**/*.py"
           skip_dirty_check: true
+          skip_fetch: false
+          skip_checkout: false
 
   check-complexity:
     runs-on: ubuntu-latest
